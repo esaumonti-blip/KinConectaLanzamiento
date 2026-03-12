@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kin Conecta - Calendario de Disponibilidad</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Spline+Sans:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+      rel="stylesheet"
+    />
+
+    <link rel="stylesheet" href="../../../styles/pages/platform.css" />
+    <link rel="stylesheet" href="../../../styles/pages/guide/dashboard-calendar.css" />
+    <script defer src="../../../scripts/api/http-client.js"></script>
+    <script defer src="../../../scripts/api/guide-api-services.js"></script>
+    <script defer src="../../../scripts/pages/guide/dashboard-calendar.js"></script>
+</head>
+
+  <body class="app platform-page role-guide">
+    <div class="layout">
+      <!-- SIDEBAR -->
+      <div
+        data-guide-sidebar
+        data-component-path="../../../components/guide-sidebar.html"
+        data-pages-prefix="../../"
+        data-assets-prefix="../../../"
+        data-guide-active="calendar"
+      ></div>
+
+      <!-- MAIN -->
+      <main class="main">
+        <!-- TOPBAR -->
+        <header class="topbar">
+          <div class="topbar__left">
+            <button
+              class="topbar__menu-btn"
+              id="btnSidebar"
+              type="button"
+              aria-controls="sidebar"
+              aria-expanded="false"
+            >
+              <span class="material-symbols-outlined">menu</span>
+              <span class="u-sr-only">Abrir menú</span>
+            </button>
+
+            <div class="topbar__heading">
+              <h2 class="topbar__title">Calendario de Disponibilidad</h2>
+              <p class="topbar__subtitle">
+                Administra tu agenda y revisa reservas.
+              </p>
+            </div>
+          </div>
+
+          <div class="topbar__actions">
+            <button
+              class="btn btn--secondary"
+              id="btnSync"
+              type="button"
+              data-google-client-id=""
+            >
+              <span class="material-symbols-outlined btn__icon">sync</span>
+              <span class="btn__text">Sincronizar calendario</span>
+            </button>
+
+            <button class="btn btn--primary" id="btnBlock" type="button">
+              <span class="material-symbols-outlined btn__icon">block</span>
+              <span class="btn__text">Bloquear fechas</span>
+            </button>
+
+            <span class="topbar__divider" aria-hidden="true"></span>
+
+            <button
+              class="topbar__notif"
+              id="btnNotif"
+              type="button"
+              aria-label="Notificaciones"
+            >
+              <span class="material-symbols-outlined">notifications</span>
+              <span class="topbar__notif-dot" aria-hidden="true"></span>
+            </button>
+          </div>
+        </header>
+
+        <!-- CONTENT -->
+        <div class="content">
+          <!-- CALENDAR AREA -->
+          <section class="calendar-area">
+            <div class="calendar-toolbar">
+              <div class="calendar-toolbar__month">
+                <button
+                  class="icon-btn"
+                  id="btnPrev"
+                  type="button"
+                  aria-label="Mes anterior"
+                >
+                  <span class="material-symbols-outlined">chevron_left</span>
+                </button>
+
+                <h3 class="calendar-toolbar__month-title" id="monthLabel">
+                  Octubre 2023
+                </h3>
+
+                <button
+                  class="icon-btn"
+                  id="btnNext"
+                  type="button"
+                  aria-label="Mes siguiente"
+                >
+                  <span class="material-symbols-outlined">chevron_right</span>
+                </button>
+              </div>
+
+              <div
+                class="view-toggle"
+                role="tablist"
+                aria-label="Cambiar vista"
+              >
+                <button
+                  class="view-toggle__btn view-toggle__btn--active"
+                  type="button"
+                  data-view="month"
+                  role="tab"
+                  aria-selected="true"
+                >
+                  Mes
+                </button>
+                <button
+                  class="view-toggle__btn"
+                  type="button"
+                  data-view="week"
+                  role="tab"
+                  aria-selected="false"
+                >
+                  Semana
+                </button>
+                <button
+                  class="view-toggle__btn"
+                  type="button"
+                  data-view="list"
+                  role="tab"
+                  aria-selected="false"
+                >
+                  Lista
+                </button>
+              </div>
+            </div>
+
+            <div class="calendar-card">
+              <div class="calendar-grid calendar-grid--header" id="dowHeader">
+                <div class="calendar-grid__dow">Dom</div>
+                <div class="calendar-grid__dow">Lun</div>
+                <div class="calendar-grid__dow">Mar</div>
+                <div class="calendar-grid__dow">Mié</div>
+                <div class="calendar-grid__dow">Jue</div>
+                <div class="calendar-grid__dow">Vie</div>
+                <div class="calendar-grid__dow">Sáb</div>
+              </div>
+
+              <!-- Month grid (se renderiza por JS) -->
+              <div
+                class="calendar-grid calendar-grid--month"
+                id="monthGrid"
+                aria-label="Calendario mensual"
+              ></div>
+            </div>
+
+            <div class="legend">
+              <div class="legend__item">
+                <span
+                  class="legend__swatch legend__swatch--booked"
+                  aria-hidden="true"
+                ></span>
+                <span class="legend__text">Reservado (confirmado)</span>
+              </div>
+              <div class="legend__item">
+                <span
+                  class="legend__swatch legend__swatch--blocked"
+                  aria-hidden="true"
+                ></span>
+                <span class="legend__text">Bloqueado (no disponible)</span>
+              </div>
+              <div class="legend__item">
+                <span
+                  class="legend__swatch legend__swatch--available"
+                  aria-hidden="true"
+                ></span>
+                <span class="legend__text">Disponible</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- RIGHT PANEL -->
+          <aside class="details" aria-label="Detalle del día">
+            <div class="details__header">
+              <div class="details__header-row">
+                <span class="details__eyebrow">Fecha seleccionada</span>
+                <button
+                  class="icon-btn icon-btn--muted"
+                  id="btnEditDay"
+                  type="button"
+                  aria-label="Editar día seleccionado"
+                >
+                  <span class="material-symbols-outlined">edit</span>
+                </button>
+              </div>
+
+              <h3 class="details__date" id="selectedDateLabel">—</h3>
+              <p class="details__meta" id="selectedDateMeta">
+                Selecciona un día
+              </p>
+            </div>
+
+            <div class="details__body">
+              <div class="timeline" id="timeline"></div>
+            </div>
+
+            <div class="details__footer">
+              <button
+                class="btn btn--secondary btn--full"
+                id="btnAddBlockTime"
+                type="button"
+              >
+                <span class="material-symbols-outlined btn__icon"
+                  >add_circle</span
+                >
+                <span class="btn__text">Agregar bloqueo horario</span>
+              </button>
+            </div>
+          </aside>
+        </div>
+
+        <!-- Backdrop para mobile sidebar -->
+        <div class="backdrop" id="backdrop" hidden></div>
+      </main>
+    </div>
+    <div
+      class="gcal-modal"
+      id="googleSyncModal"
+      hidden
+      aria-hidden="true"
+    >
+      <div class="gcal-modal__backdrop" data-google-close></div>
+      <section
+        class="gcal-modal__panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="googleSyncTitle"
+      >
+        <header class="gcal-modal__header">
+          <h3 class="gcal-modal__title" id="googleSyncTitle">
+            Conectar Google Calendar
+          </h3>
+          <button
+            class="gcal-modal__close"
+            type="button"
+            id="btnGoogleModalClose"
+            aria-label="Cerrar"
+          >
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </header>
+
+        <p class="gcal-modal__subtitle">
+          Conecta tu cuenta para bloquear automaticamente la disponibilidad del
+          guia segun los eventos de Google Calendar.
+        </p>
+
+        <form class="gcal-modal__form" id="googleSyncForm">
+          <label class="gcal-modal__field">
+            <span>ID de calendario</span>
+            <input
+              type="text"
+              id="googleCalendarId"
+              name="googleCalendarId"
+              value="primary"
+              placeholder="primary"
+              autocomplete="off"
+            />
+          </label>
+
+          <label class="gcal-modal__field">
+            <span>Estado de conexion</span>
+            <input
+              type="text"
+              id="googleConnectionStatus"
+              value="No conectado"
+              readonly
+            />
+          </label>
+        </form>
+
+        <p class="gcal-modal__meta" id="googleLastSyncAt">
+          Ultima sincronizacion: aun no realizada
+        </p>
+        <p class="gcal-modal__feedback" id="googleSyncFeedback" aria-live="polite"></p>
+
+        <div class="gcal-modal__actions">
+          <button class="btn btn--primary" type="button" id="btnGoogleConnect">
+            Conectar con Google
+          </button>
+          <button
+            class="btn btn--secondary"
+            type="button"
+            id="btnGoogleRunSync"
+            disabled
+          >
+            Sincronizar ahora
+          </button>
+          <button
+            class="btn btn--secondary"
+            type="button"
+            id="btnGoogleDisconnect"
+            disabled
+          >
+            Desconectar
+          </button>
+        </div>
+      </section>
+    </div>
+
+    <div
+      data-guide-chat-widget
+      data-component-path="../../../components/guide-chat-widget.html"
+    ></div>
+    <script src="../../../scripts/components/guide-shell.js"></script>
+  </body>
+</html>
