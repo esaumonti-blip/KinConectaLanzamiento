@@ -123,6 +123,24 @@ const TouristDashboardApp = (() => {
       maximumFractionDigits: 0,
     }).format(value);
 
+  const unwrapItems = (response) => {
+    const data = response?.data?.items || response?.data || [];
+    return Array.isArray(data) ? data : [];
+  };
+
+  const normalizeId = (value, fallback = 0) => {
+    const digits = String(value ?? "").match(/\d+/g);
+    const parsed = Number(digits ? digits.join("") : value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
+
+  const page = (items, query) => {
+    const rows = Array.isArray(items) ? items : [];
+    const current = Math.max(0, Number(query?.page || 0));
+    const size = Math.max(1, Number(query?.size || rows.length || 1));
+    return rows.slice(current * size, current * size + size);
+  };
+
   const loadingMarkup = (label, compact = false) => `
     <div class="guide-loading ${compact ? "guide-loading--compact" : ""}" role="status" aria-live="polite" aria-busy="true">
       <span class="guide-loading__spinner" aria-hidden="true"></span>
@@ -188,7 +206,17 @@ const TouristDashboardApp = (() => {
   }
 
   async function hydrateFromApi() {
-    if (!window.KCTouristApi) {
+    const services = {
+      user: window.KCUserService,
+      profile: window.KCProfileService,
+      review: window.KCReviewService,
+      support: window.KCSupportService,
+      tour: window.KCTourService,
+      booking: window.KCBookingService,
+    };
+
+    const hasServices = Object.values(services).some(Boolean);
+    if (!hasServices) {
       state.recommendedGuides = fallback.recommendedGuides.slice();
       state.destinations = fallback.destinations.slice();
       state.savedGuides = fallback.savedGuides.slice();
@@ -196,47 +224,192 @@ const TouristDashboardApp = (() => {
     }
 
     try {
-      const [summaryRes, nextTripRes, guidesRes, destinationsRes, savedRes] = await Promise.all([
-        window.KCTouristApi.dashboard.getSummary(),
-        window.KCTouristApi.dashboard.getNextTrip(),
-        window.KCTouristApi.dashboard.getRecommendedGuides({ page: 0, size: 6 }),
-        window.KCTouristApi.dashboard.getPopularDestinations({ page: 0, size: 6 }),
-        window.KCTouristApi.dashboard.getSavedGuides({ page: 0, size: 6 }),
+      const touristId = normalizeId(state.touristId, 0);
+      const [
+        usersRes,
+        guideProfilesRes,
+        touristProfileRes,
+        destinationsRes,
+        reviewsRes,
+        favoriteGuidesRes,
+        bookingsRes,
+        toursRes,
+        tourDestinationsRes,
+      ] = await Promise.all([
+        services.user?.getUsers?.() ?? Promise.resolve(null),
+        services.profile?.getGuideProfiles?.() ?? Promise.resolve(null),
+        services.profile?.getTouristProfileById?.(touristId) ?? Promise.resolve(null),
+        services.tour?.getDestinations?.() ?? Promise.resolve(null),
+        services.review?.getReviews?.() ?? Promise.resolve(null),
+        services.support?.getFavoriteGuides?.() ?? Promise.resolve(null),
+        services.booking?.getBookings?.() ?? Promise.resolve(null),
+        services.tour?.getTours?.() ?? Promise.resolve(null),
+        services.tour?.getTourDestinations?.() ?? Promise.resolve(null),
       ]);
 
-      const summary = summaryRes?.data || {};
-      state.user.name = summary.name || summary.fullName || state.user.name;
-      state.user.activeTrips = Number(summary.activeTrips ?? state.user.activeTrips);
+      const users = unwrapItems(usersRes);
+      const guideProfiles = unwrapItems(guideProfilesRes);
+      const touristProfile = touristProfileRes?.data || {};
+      const destinations = unwrapItems(destinationsRes);
+      const reviews = unwrapItems(reviewsRes);
+      const favoriteGuides = unwrapItems(favoriteGuidesRes);
+      const bookings = unwrapItems(bookingsRes);
+      const tours = unwrapItems(toursRes);
+      const tourDestinations = unwrapItems(tourDestinationsRes);
 
-      const nextTrip = nextTripRes?.data || {};
-      state.nextTrip = {
-        ...state.nextTrip,
-        id: nextTrip.id ?? state.nextTrip.id,
-        destination: nextTrip.destination || state.nextTrip.destination,
-        title: nextTrip.title || state.nextTrip.title,
-        dates: nextTrip.datesLabel || nextTrip.dates || state.nextTrip.dates,
-        status: nextTrip.statusLabel || nextTrip.status || state.nextTrip.status,
-        image: nextTrip.imageUrl || state.nextTrip.image,
-        guide: {
-          id: nextTrip.guide?.id || state.nextTrip.guide.id,
-          name: nextTrip.guide?.name || state.nextTrip.guide.name,
-          avatar: nextTrip.guide?.avatarUrl || state.nextTrip.guide.avatar,
-        },
-      };
+      const usersMap = new Map(users.map((item) => [normalizeId(item.userId, 0), item]));
+      const guideProfilesMap = new Map(
+        guideProfiles.map((item) => [normalizeId(item.userId, 0), item]),
+      );
+      const toursMap = new Map(tours.map((item) => [normalizeId(item.tourId, 0), item]));
+      const destinationsMap = new Map(
+        destinations.map((item) => [
+          normalizeId(item.destinationId, 0),
+          {
+            title: `${item.city || ""}${item.state ? `, ${item.state}` : ""}`.trim() || "Destino",
+            subtitle: item.description || "Destino disponible",
+            imageUrl: item.imageUrl || "",
+            wide: Boolean(item.isFeatured),
+          },
+        ]),
+      );
 
-      const guides = guidesRes?.data?.items || guidesRes?.data || [];
-      const destinations = destinationsRes?.data?.items || destinationsRes?.data || [];
-      const saved = savedRes?.data?.items || savedRes?.data || [];
+      const ratingTotals = new Map();
+      const ratingCounts = new Map();
+      reviews.forEach((item) => {
+        const guideId = normalizeId(item.guideId ?? item.userId ?? item.profileId, 0);
+        const rating = Number(item.rating || 0);
+        if (!guideId || !Number.isFinite(rating) || rating <= 0) return;
+        ratingTotals.set(guideId, (ratingTotals.get(guideId) || 0) + rating);
+        ratingCounts.set(guideId, (ratingCounts.get(guideId) || 0) + 1);
+      });
 
-      state.recommendedGuides = Array.isArray(guides) && guides.length
-        ? guides.map(mapGuide)
-        : fallback.recommendedGuides.slice();
-      state.destinations = Array.isArray(destinations) && destinations.length
-        ? destinations.map(mapDestination)
-        : fallback.destinations.slice();
-      state.savedGuides = Array.isArray(saved) && saved.length
-        ? saved.map(mapSavedGuide)
-        : fallback.savedGuides.slice();
+      const ratingByGuide = new Map(
+        [...ratingTotals.entries()].map(([guideId, total]) => [
+          guideId,
+          total / Math.max(1, ratingCounts.get(guideId) || 1),
+        ]),
+      );
+
+      if (users.length || touristProfile) {
+        const user = usersMap.get(touristId) || {};
+        state.user.name = user.fullName || touristProfile.fullName || touristProfile.name || state.user.name;
+        if (bookings.length) {
+          state.user.activeTrips = bookings.filter((item) => {
+            const matches = normalizeId(item.touristId, 0) === touristId;
+            const status = String(item.status || "").toUpperCase();
+            return matches && status !== "CANCELLED";
+          }).length;
+        }
+      }
+
+      if (bookings.length && tours.length) {
+        const next = bookings
+          .filter((item) => normalizeId(item.touristId, 0) === touristId)
+          .slice()
+          .sort((a, b) => String(a.startDatetime || "").localeCompare(String(b.startDatetime || "")))
+          .find((item) => new Date(item.startDatetime) >= new Date()) || bookings[0] || null;
+        if (next) {
+          const tour = toursMap.get(normalizeId(next.tourId, 0)) || {};
+          const guideUser = usersMap.get(normalizeId(next.guideId, 0)) || {};
+          const guideProfile = guideProfilesMap.get(normalizeId(next.guideId, 0)) || {};
+          state.nextTrip = {
+            ...state.nextTrip,
+            id: next.tripId ?? state.nextTrip.id,
+            destination: guideProfile.locationLabel || tour.meetingPoint || state.nextTrip.destination,
+            title: tour.title || state.nextTrip.title,
+            dates: next.startDatetime && next.endDatetime
+              ? `${new Date(next.startDatetime).toLocaleDateString("es-MX")} - ${new Date(next.endDatetime).toLocaleDateString("es-MX")}`
+              : state.nextTrip.dates,
+            status: next.status || state.nextTrip.status,
+            image: tour.coverImageUrl || state.nextTrip.image,
+            guide: {
+              id: next.guideId || state.nextTrip.guide.id,
+              name: guideUser.fullName || state.nextTrip.guide.name,
+              avatar: guideProfile.avatarUrl || state.nextTrip.guide.avatar,
+            },
+          };
+        }
+      }
+
+      if (guideProfiles.length) {
+        const guideCards = guideProfiles.map((profile) => {
+          const user = usersMap.get(normalizeId(profile.userId, 0)) || {};
+          const rating = Number(profile.ratingAvg || ratingByGuide.get(normalizeId(profile.userId, 0)) || 0);
+          return mapGuide({
+            id: profile.userId,
+            name: user.fullName || "Guia",
+            fullName: user.fullName || "Guia",
+            description: profile.summary || "Guia registrado en backend.",
+            rating,
+            priceMXN: Number(profile.hourlyRate || 0),
+            imageUrl: profile.avatarUrl || "",
+          });
+        });
+
+        state.recommendedGuides = guideCards.length
+          ? page(guideCards, { page: 0, size: 6 })
+          : fallback.recommendedGuides.slice();
+      } else {
+        state.recommendedGuides = fallback.recommendedGuides.slice();
+      }
+
+      if (destinations.length) {
+        const items = page(
+          destinations.map((item) => ({
+            id: item.destinationId,
+            title: `${item.city || ""}${item.state ? `, ${item.state}` : ""}`.trim() || "Destino",
+            subtitle: item.description || "Destino disponible",
+            wide: Boolean(item.isFeatured),
+            imageUrl: item.imageUrl || "",
+          })),
+          { page: 0, size: 6 },
+        );
+        state.destinations = items.length ? items.map(mapDestination) : fallback.destinations.slice();
+      } else {
+        state.destinations = fallback.destinations.slice();
+      }
+
+      if (favoriteGuides.length && guideProfiles.length) {
+        const saved = favoriteGuides
+          .filter((item) => normalizeId(item.touristId, 0) === touristId)
+          .map((item) => {
+            const guideId = normalizeId(item.guideId ?? item.userId ?? item.favoriteGuideId, 0);
+            const profile = guideProfilesMap.get(guideId) || {};
+            const user = usersMap.get(guideId) || {};
+            return mapSavedGuide({
+              id: guideId || item.id,
+              name: user.fullName || "Guia guardada",
+              place: profile.locationLabel || "Mexico",
+              avatarUrl: profile.avatarUrl || "",
+            });
+          })
+          .filter((item) => item.id);
+        state.savedGuides = saved.length ? page(saved, { page: 0, size: 6 }) : fallback.savedGuides.slice();
+      } else {
+        state.savedGuides = fallback.savedGuides.slice();
+      }
+
+      if (tourDestinations.length && destinationsMap.size && toursMap.size) {
+        // If destinations are empty, enrich them using tour destinations as a fallback.
+        if (!destinations.length) {
+          const inferred = [];
+          tourDestinations.forEach((link) => {
+            const destination = destinationsMap.get(normalizeId(link.destinationId, 0));
+            if (!destination) return;
+            inferred.push({
+              id: normalizeId(link.destinationId, 0),
+              title: destination.title,
+              subtitle: destination.subtitle,
+              wide: destination.wide,
+              imageUrl: destination.imageUrl,
+            });
+          });
+          if (inferred.length) {
+            state.destinations = page(inferred, { page: 0, size: 6 }).map(mapDestination);
+          }
+        }
+      }
     } catch (error) {
       console.warn("Tourist dashboard API fallback enabled:", error);
       state.recommendedGuides = fallback.recommendedGuides.slice();
@@ -353,8 +526,9 @@ const TouristDashboardApp = (() => {
         event.stopPropagation();
         const id = event.currentTarget.getAttribute("data-saved-id");
         try {
-          if (window.KCTouristApi) {
-            await window.KCTouristApi.favorites.removeGuide(id);
+          if (window.KCSupportService?.deleteFavoriteGuide) {
+            const touristId = normalizeId(state.touristId, state.touristId);
+            await window.KCSupportService.deleteFavoriteGuide(touristId, id);
           }
         } catch (error) {
           console.warn("Remove favorite pending backend implementation:", error);
