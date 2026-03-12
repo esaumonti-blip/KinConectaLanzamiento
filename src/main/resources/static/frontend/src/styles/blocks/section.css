@@ -1,0 +1,45 @@
+.section {
+  padding: 2.25rem 0;
+}
+
+/* Espaciado uniforme entre secciones de pages de marketing (index/aboutus). */
+.marketing-page {
+  --marketing-section-gap: 2.25rem;
+}
+
+.marketing-page main > .section {
+  padding: 0;
+}
+
+.marketing-page main > .section + .section {
+  margin-top: var(--marketing-section-gap);
+}
+
+.marketing-page main > .hero + .section {
+  margin-top: var(--marketing-section-gap);
+}
+
+.section--bg-white {
+  background-color: transparent;
+}
+
+.section__header {
+  text-align: center;
+  max-width: 800px;
+  margin: 0 auto 3rem auto;
+}
+
+.section__header--left {
+  text-align: left;
+  margin-left: 0;
+}
+
+.section__title {
+  font-size: 1.95rem;
+  margin-bottom: 0.8rem;
+}
+
+.section__subtitle {
+  color: var(--color-text-muted);
+  font-size: 1.1rem;
+}
