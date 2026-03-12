@@ -3,7 +3,7 @@
   const NETWORK_COOLDOWN_MS = 15000;
 
   const state = {
-    baseUrl: "http://localhost:8080/api",
+    baseUrl: "http://34.217.214.47:8080/api",
     getAuthToken: null,
     onUnauthorized: null,
     networkDownUntil: 0,
